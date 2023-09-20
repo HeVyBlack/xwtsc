@@ -6,6 +6,12 @@
 
 - To Install: `npm i -D xwtsc`
 
-- To Use: `xwtsc` `npx xwtsc`
+- To Use: `xwtsc [option] [verb] [flags]` or `npx xwtsc [option] [verb] [flags]`
 
-- ToDo: Run File &  
+- Options: `build` & `check`
+
+- Verbs: `watch`
+
+- Flags: `--tsconfig [path/to/tsconfig.json] (default: ./tsconfig.json)`
+
+- ToDo: Run File
