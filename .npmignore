@@ -1,0 +1,8 @@
+node_modules
+src
+.gitignore
+.eslintrc.json
+.prettierrc
+pnpm-lock.yaml
+tsconfig.json
+tsconfig.tsbuildinfo
