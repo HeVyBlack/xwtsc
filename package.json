@@ -6,7 +6,7 @@
   "bin": "bin/main.js",
   "scripts": {
     "dev": "tsc --watch",
-    "start": "node .",
+    "build": "tsc",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "check": "tsc --noEmit"
