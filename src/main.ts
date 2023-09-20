@@ -6,6 +6,7 @@ import { ChangeTsExts } from './libs/morph.js';
 import { prepareSingleFileReplaceTscAliasPaths } from 'tsc-alias';
 import { Builder, WatchBuilder } from './builder/builder.js';
 import { Checker, WatchChecker } from './checker/checker.js';
+import { Runner, WatchRunner } from './runner/runner.js';
 
 async function main(args: string[]) {
   const option = args[0];
@@ -69,7 +70,6 @@ async function main(args: string[]) {
     if (option === 'check') {
       if (verb && verb === 'watch') {
         const watchBuilder = new WatchChecker(
-          fileReplacer,
           changeTsExt,
           morphProject,
           tsConfigPath,
@@ -87,6 +87,60 @@ async function main(args: string[]) {
         );
 
         checker.check();
+      }
+    }
+
+    if (option === 'run') {
+      if (verb && verb === 'watch') {
+        const fileToRun = args[2];
+        if (!fileToRun) throw new Error('File to run needed!');
+
+        const fileArgs: string[] = [];
+
+        if (args.includes('--args=')) {
+          const index = args.indexOf('--args=') + 1;
+          const auxArgs = args.slice(index);
+
+          for (const a of auxArgs) {
+            fileArgs.push(a);
+          }
+        }
+
+        const watchBuilder = new WatchRunner(
+          changeTsExt,
+          morphProject,
+          fileToRun,
+          fileArgs,
+          tsConfigPath,
+        );
+
+        watchBuilder.initWatcher();
+      } else {
+        const fileToRun = verb;
+        if (!fileToRun) throw new Error('File to run needed!');
+
+        const fileArgs: string[] = [];
+
+        if (args.includes('--args=')) {
+          const index = args.indexOf('--args=') + 1;
+          const auxArgs = args.slice(index);
+
+          for (const a of auxArgs) {
+            fileArgs.push(a);
+          }
+        }
+
+        const { fileNames, options } = Runner.readTsConfig(tsConfigPath);
+        const runner = new Runner(
+          changeTsExt,
+          morphProject,
+          fileToRun,
+          fileArgs,
+          options,
+          fileNames,
+        );
+
+        runner.run();
       }
     }
   }

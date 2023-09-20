@@ -10,7 +10,6 @@ import { Project as MorphProject } from 'ts-morph';
 
 export class WatchChecker extends WatchProgram {
   constructor(
-    private readonly fileReplacer: SingleFileReplacer,
     private readonly changeTsExt: ChangeTsExts,
     private readonly morphProject: MorphProject,
     configName: string,
@@ -35,9 +34,6 @@ export class WatchChecker extends WatchProgram {
 
       if (host) {
         host.readFile = morphReadFile(this.morphProject, this.changeTsExt);
-
-        const origWriteFile = host.writeFile;
-        host.writeFile = morphWriteFile(origWriteFile, this.fileReplacer);
       }
 
       return origCreateProgram(...args);

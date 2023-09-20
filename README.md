@@ -8,10 +8,10 @@
 
 - To Use: `xwtsc [option] [verb] [flags]` or `npx xwtsc [option] [verb] [flags]`
 
-- Options: `build` & `check`
+- Options: `build` & `check` & `run`
 
 - Verbs: `watch`
 
 - Flags: `--tsconfig [path/to/tsconfig.json] (default: ./tsconfig.json)`
 
-- ToDo: Run File
+- Notes: For `run`, you must pass a file to run. To pass arguments, use --args=  `[...args]` (Must be the last flag)
