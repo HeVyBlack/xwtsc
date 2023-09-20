@@ -5,7 +5,7 @@ import { Project as MorphProject } from 'ts-morph';
 import { ChangeTsExts } from './libs/morph.js';
 import { prepareSingleFileReplaceTscAliasPaths } from 'tsc-alias';
 import { Builder, WatchBuilder } from './builder/builder.js';
-import { Chcker, WatchChecker } from './checker/checker.js';
+import { Checker, WatchChecker } from './checker/checker.js';
 
 async function main(args: string[]) {
   const option = args[0];
@@ -51,13 +51,19 @@ async function main(args: string[]) {
         );
 
         watchBuilder.initWatcher();
-      } else
-        new Builder(
+      } else {
+        const { fileNames, options } = Builder.readTsConfig(tsConfigPath);
+
+        const builder = new Builder(
           fileReplacer,
           changeTsExt,
           morphProject,
-          tsConfigPath,
-        ).init();
+          options,
+          fileNames,
+        );
+
+        builder.build();
+      }
     }
 
     if (option === 'check') {
@@ -70,13 +76,18 @@ async function main(args: string[]) {
         );
 
         watchBuilder.initWatcher();
-      } else
-        new Chcker(
+      } else {
+        const { fileNames, options } = Checker.readTsConfig(tsConfigPath);
+        const checker = new Checker(
           fileReplacer,
           changeTsExt,
           morphProject,
-          tsConfigPath,
-        ).init();
+          options,
+          fileNames,
+        );
+
+        checker.check();
+      }
     }
   }
 }

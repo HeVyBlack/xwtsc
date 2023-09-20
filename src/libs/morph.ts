@@ -1,48 +1,65 @@
-import { SourceFile, TransformTraversalControl, ts as morph } from 'ts-morph';
+import {
+  SourceFile,
+  TransformTraversalControl,
+  ts as morph,
+  Project as MorphProject,
+} from 'ts-morph';
+import { SingleFileReplacer } from 'tsc-alias';
 import ts from 'typescript';
 
 export class ChangeTsExts {
-  private readonly relative_path = /^(\/|\.{1,2}\/)/;
-  inStringLiteral = (string: morph.StringLiteral) => {
-    const text = string.text;
+  private readonly endsTsExt = /\.(m|c)?ts$/; // Ends with a ts extension
+  private readonly relativePath = /^(\/|\.{1,2}\/)/; // Is relative or absulute;
 
-    if (this.relative_path.test(text)) {
-      const new_text = text.replace(/\.(m|c)?ts$/, (match) =>
-        match.replace(/ts$/, 'js'),
-      );
+  readonly inText = (text: string) => {
+    if (this.relativePath.test(text) && this.endsTsExt.test(text)) {
+      const newText = text.replace(/ts$/, 'js');
 
-      const new_string = morph.factory.createStringLiteral(new_text, false);
-      return new_string;
-    } else if (this.options) {
+      return newText;
+    }
+    if (this.options) {
       const paths = this.options.paths;
-      if (!paths) return string;
+      if (!paths) return text;
 
       for (const p in paths) {
-        const p_regex = new RegExp(`^${p}`);
-        if (p_regex.test(text)) {
-          const new_text = text.replace(/ts$/, 'js');
-          const new_string = morph.factory.createStringLiteral(new_text, false);
-          return new_string;
+        const pRegex = new RegExp(`^${p}$`); // Starts and ends
+
+        if (!pRegex.test(text)) {
+          const pRegex = new RegExp(`^${p}`); // Only starts
+          if (pRegex.test(text) && this.endsTsExt.test(text)) {
+            const newText = text.replace(/ts$/, 'js');
+            return newText;
+          }
         }
       }
     }
 
-    return string;
+    return text;
   };
 
-  inArgs = (args: morph.NodeArray<morph.Expression>) => {
+  readonly inStringLiteral = (string: morph.StringLiteral) => {
+    const text = string.text;
+
+    const newText = this.inText(text);
+
+    const newString = morph.factory.createStringLiteral(newText, false);
+
+    return newString;
+  };
+
+  readonly inArgs = (args: morph.NodeArray<morph.Expression>) => {
     const newArgs = [];
     for (const arg of args) {
       if (morph.isStringLiteral(arg)) {
-        const new_string = this.inStringLiteral(arg);
-        newArgs.push(new_string);
+        const newString = this.inStringLiteral(arg);
+        newArgs.push(newString);
       }
     }
 
     return newArgs;
   };
 
-  inCallExpression = (call: morph.CallExpression) => {
+  readonly inCallExpression = (call: morph.CallExpression) => {
     const firstChild = call.getChildAt(0);
     const getNewCall = () => {
       const args = call.arguments;
@@ -66,7 +83,7 @@ export class ChangeTsExts {
     return call;
   };
 
-  inImportDeclaration = (imp: morph.ImportDeclaration) => {
+  readonly inImportDeclaration = (imp: morph.ImportDeclaration) => {
     const moduleSpecifier = imp.moduleSpecifier;
 
     if (!morph.isStringLiteral(moduleSpecifier)) return imp;
@@ -83,7 +100,7 @@ export class ChangeTsExts {
     return newImport;
   };
 
-  inExportDeclaration = (exp: morph.ExportDeclaration) => {
+  readonly inExportDeclaration = (exp: morph.ExportDeclaration) => {
     const moduleSpecifier = exp.moduleSpecifier;
     if (!moduleSpecifier) return exp;
 
@@ -104,11 +121,11 @@ export class ChangeTsExts {
 
   private options?: ts.CompilerOptions;
 
-  setOptions(options: ts.CompilerOptions) {
+  readonly setOptions = (options: ts.CompilerOptions) => {
     this.options = options;
-  }
+  };
 
-  private visitor = (node: TransformTraversalControl): morph.Node => {
+  private readonly visitor = (node: TransformTraversalControl): morph.Node => {
     const child = node.visitChildren();
     if (morph.isCallExpression(child)) {
       const newChild = this.inCallExpression(child);
@@ -128,9 +145,43 @@ export class ChangeTsExts {
     return child;
   };
 
-  inSourceFile = (sourceFile: SourceFile) => {
+  readonly inSourceFile = (sourceFile: SourceFile) => {
     const transformed = sourceFile.transform(this.visitor);
 
     return transformed;
   };
 }
+
+export const morphReadFile = (
+  morphProject: MorphProject,
+  changeTsExt: ChangeTsExts,
+) => {
+  return function (path: string, encoding: string = 'utf-8') {
+    const file = ts.sys.readFile(path, encoding);
+
+    if (file !== undefined) {
+      const sourceFile = morphProject.createSourceFile(path, file, {
+        overwrite: true,
+      });
+
+      const transformed = changeTsExt.inSourceFile(sourceFile);
+      return transformed.getFullText();
+    } else return file;
+  };
+};
+
+export const morphWriteFile = (
+  origWriteFile: ts.WriteFileCallback,
+  fileReplacer: SingleFileReplacer,
+): ts.WriteFileCallback => {
+  return function (...args) {
+    const [fileName, text, ...rest] = args;
+
+    const newText = fileReplacer({
+      fileContents: text,
+      filePath: fileName,
+    });
+
+    return origWriteFile(fileName, newText, ...rest);
+  };
+};
