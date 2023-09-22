@@ -49,21 +49,23 @@ export class ChangeTsExts {
 
   readonly inArgs = (args: morph.NodeArray<morph.Expression>) => {
     const newArgs = [];
+
     for (const arg of args) {
       if (morph.isStringLiteral(arg)) {
         const newString = this.inStringLiteral(arg);
         newArgs.push(newString);
-      }
+      } else newArgs.push(arg);
     }
 
     return newArgs;
   };
 
   readonly inCallExpression = (call: morph.CallExpression) => {
-    const firstChild = call.getChildAt(0);
-    const getNewCall = () => {
-      const args = call.arguments;
+    const args = call.arguments;
 
+    if (args.length === 0) return call;
+
+    const getNewCall = () => {
       const newArgs = this.inArgs(args);
 
       const newCall = morph.factory.updateCallExpression(
@@ -76,9 +78,24 @@ export class ChangeTsExts {
       return newCall;
     };
 
-    if (firstChild.kind === morph.SyntaxKind.ImportKeyword) return getNewCall();
+    const firstChild = call.getChildAt(0);
 
-    if (firstChild.getText() === 'require') return getNewCall();
+    if (firstChild.kind === morph.SyntaxKind.ImportKeyword) {
+      if (args.length > 2) return call;
+      return getNewCall();
+    }
+
+    if (firstChild.getText() === 'require') {
+      if (args.length > 1) return call;
+
+      const firstArg = args[0];
+
+      if (!firstArg) return call;
+
+      if (!morph.isStringLiteral(firstArg)) return call;
+
+      return getNewCall();
+    }
 
     return call;
   };

@@ -4,8 +4,11 @@ import { dirname, extname, join, resolve as resolvePath, sep } from 'node:path';
 import { cwd } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import moduleAlias from 'module-alias';
+import fs from 'node:fs';
 
 const options = JSON.parse(process.env['XWTSC_OPTIONS']!) as ts.CompilerOptions;
+
+options.sourceMap = false;
 
 interface ModuleType {
   id: string;
@@ -34,16 +37,12 @@ function respectDynamicImport(code: string) {
   return code;
 }
 
-function handleFileTranspilation(module: ModuleType, filename: string) {
-  const file = ts.sys.readFile(filename, 'utf-8')!;
-  const transpile = ts.transpileModule(file, {
-    compilerOptions: {
-      ...options,
-      module: ts.ModuleKind.Node16,
-    },
-  });
+function handleFileTranspilation(module: ModuleType, fileName: string) {
+  const file = ts.sys.readFile(fileName, 'utf-8')!;
 
-  module._compile(respectDynamicImport(transpile['outputText']), filename);
+  const transpiled = ts.transpile(file, options, fileName, [], fileName);
+
+  module._compile(respectDynamicImport(transpiled), fileName);
 }
 
 TypedModule._extensions['.ts'] = handleFileTranspilation;
@@ -64,11 +63,11 @@ type NextResolve = (specifier: string) => Promise<void>;
 const { paths = {}, baseUrl = cwd() } = options;
 
 const moduleAliases: {
-  multi_files: Record<string, string[]>;
-  single_file: Record<string, string>;
+  multiFiles: Record<string, string[]>;
+  singleFile: Record<string, string>;
 } = {
-  multi_files: {},
-  single_file: {},
+  multiFiles: {},
+  singleFile: {},
 };
 if (paths) {
   for (const i in paths) {
@@ -83,12 +82,12 @@ if (paths) {
           moduleAlias.addAlias(i_replace, p_join);
           p_files.push(p_join);
         }
-        moduleAliases.multi_files[i_replace] = p_files;
+        moduleAliases.multiFiles[i_replace] = p_files;
       }
     } else {
       const path_join = join(baseUrl, paths[i]![0]!);
       moduleAlias.addAlias(i, path_join);
-      moduleAliases.single_file[i] = path_join;
+      moduleAliases.singleFile[i] = path_join;
     }
   }
 }
@@ -100,9 +99,9 @@ export async function resolve(
 ) {
   const { parentURL = baseURL } = context;
   if (extensionsRegex.test(specifier)) {
-    for (const i in moduleAliases.multi_files) {
+    for (const i in moduleAliases.multiFiles) {
       if (specifier.includes(i)) {
-        const aliases = moduleAliases.multi_files[i]!;
+        const aliases = moduleAliases.multiFiles[i]!;
         for (const f of aliases) {
           const f_replace = specifier.replace(i, f);
           const f_exists = ts.sys.fileExists(f_replace);
@@ -123,9 +122,9 @@ export async function resolve(
       url: new URL(specifier, parentURL).href,
     };
   } else {
-    for (const i in moduleAliases.single_file) {
+    for (const i in moduleAliases.singleFile) {
       if (specifier.includes(i)) {
-        const url = new URL(moduleAliases.single_file[i]!, parentURL).href;
+        const url = new URL(moduleAliases.singleFile[i]!, parentURL).href;
         return {
           shortCircuit: true,
           url,
@@ -137,94 +136,76 @@ export async function resolve(
   return nextResolve(specifier);
 }
 
-type LoadContext = { format: string | undefined; importAssertions: object };
+type LoadContext = {
+  format: string | undefined | null;
+  importAssertions: object;
+  conditions: string[];
+};
 
-type NextLoad = (url: string) => Promise<void>;
+type LoadReturn = {
+  format: 'commonjs' | 'module' | 'builtin' | 'json' | 'wasm';
+  shortCircuit: boolean;
+  source?: string;
+};
+
+type NextLoad = (url: string, context: LoadContext) => LoadReturn;
 
 export async function load(
   url: string,
-  _context: LoadContext,
+  context: LoadContext,
   nextLoad: NextLoad,
-): Promise<{
-  format: 'commonjs' | 'module';
-  shortCircuit: boolean;
-  source?: string;
-} | void> {
-  if (extensionsRegex.test(url)) {
-    if (url.endsWith('.cts')) {
-      return {
-        format: 'commonjs',
-        shortCircuit: true,
-      };
-    }
+): Promise<LoadReturn> {
+  const format = getFormat(url);
 
-    if (url.endsWith('.mts')) {
-      const file = ts.sys.readFile(fileURLToPath(url), 'utf-8') || '';
+  if (format === 'unknown') return nextLoad(url, context);
 
-      const compilerOptions: ts.CompilerOptions = {
-        ...options,
-        module: ts.ModuleKind.ESNext,
-        target: ts.ScriptTarget.ESNext,
-      };
+  if (format === 'commonjs') return { format, shortCircuit: true };
 
-      const { outputText } = ts.transpileModule(file, {
-        compilerOptions,
-      });
+  const file = fs.readFileSync(fileURLToPath(url), 'utf-8');
 
-      return {
-        format: 'module',
-        shortCircuit: true,
-        source: outputText,
-      };
-    }
+  const compilerOptions = { ...options };
 
-    const format = getPackageType(url);
+  compilerOptions.module = ts.ModuleKind.ESNext;
 
-    if (format === 'commonjs') {
-      return {
-        format,
-        shortCircuit: true,
-      };
-    }
+  const source = ts.transpile(file, compilerOptions, url, [], url);
 
-    const file = ts.sys.readFile(fileURLToPath(url), 'utf-8') || '';
-
-    const compilerOptions: ts.CompilerOptions = { ...options };
-
-    if (format === 'module') {
-      compilerOptions.module = ts.ModuleKind.ESNext;
-      compilerOptions.target = ts.ScriptTarget.ESNext;
-    }
-
-    const { outputText } = ts.transpileModule(file, {
-      compilerOptions,
-    });
-
-    return {
-      format,
-      shortCircuit: true,
-      source: outputText,
-    };
-  }
-
-  return nextLoad(url);
+  return { format, shortCircuit: true, source };
 }
 
-export function getPackageType(url: string): 'commonjs' | 'module' {
+let packageFormat: 'commonjs' | 'module';
+function getFormat(url: string): 'commonjs' | 'module' | 'unknown' {
+  if (url.endsWith('.cts')) return 'commonjs';
+  if (url.endsWith('.mts')) return 'module';
+  if (url.endsWith('.ts')) {
+    if (packageFormat) return packageFormat;
+
+    packageFormat = getPackageFormat(url);
+
+    return packageFormat;
+  }
+
+  return 'unknown';
+}
+
+function getPackageFormat(url: string): 'commonjs' | 'module' {
   const isFilePath = !!extname(url);
 
   const dir = isFilePath ? dirname(fileURLToPath(url)) : url;
 
   const packagePath = resolvePath(dir, 'package.json');
 
-  const file = ts.sys.readFile(packagePath, 'utf-8')!;
+  const exists = fs.existsSync(packagePath);
 
-  if (!file) {
-    if (dir.length > 1) return getPackageType(resolvePath(dir, '..'));
-    else return 'commonjs';
+  if (exists) {
+    const file = fs.readFileSync(packagePath, 'utf-8');
+
+    const type = JSON.parse(file).type || 'commonjs';
+
+    return type;
   }
 
-  const type = JSON.parse(file).type || 'commonjs';
-
-  return type;
+  if (dir.length > 1) {
+    const behindFolder = resolvePath(dir, '..');
+    return getPackageFormat(behindFolder);
+  } else return 'commonjs';
 }

@@ -1,6 +1,6 @@
 {
   "name": "xwtsc",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "main": "bin/main.js",
   "bin": "bin/main.js",
