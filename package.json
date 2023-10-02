@@ -9,7 +9,10 @@
     "build": "tsc",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint \"src/**/*.ts\" --fix",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "clear": "rimraf bin tsconfig.tsbuildinfo",
+    "prepublish": "pnpm run format && pnpm run lint && pnpm run clear && pnpm run build",
+    "publish": "pnpm run prepublish && npm publish"
   },
   "keywords": [
     "typescript",
@@ -33,6 +36,7 @@
     "eslint-plugin-prettier": "5.0.0",
     "eslint-plugin-promise": "6.1.1",
     "prettier": "3.0.3",
+    "rimraf": "5.0.5",
     "typescript": "5.2.2"
   },
   "peerDependencies": {
