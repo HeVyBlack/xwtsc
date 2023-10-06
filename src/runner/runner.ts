@@ -4,7 +4,7 @@ import {
   WatchProgram,
   reportDiagnostics,
 } from '../libs/typescript.js';
-import { ChangeTsExts, morphReadFile } from '../libs/morph.js';
+import { ChangeTsExts } from '../libs/morph.js';
 import { Project as MorphProject } from 'ts-morph';
 import path from 'path';
 import { initChild } from '../utils/child.js';
@@ -14,8 +14,8 @@ import { ChildProcess } from 'child_process';
 
 export class WatchRunner extends WatchProgram {
   constructor(
-    private readonly changeTsExt: ChangeTsExts,
-    private readonly morphProject: MorphProject,
+    _changeTsExt: ChangeTsExts,
+    _morphProject: MorphProject,
     private readonly fileToRun: string,
     private readonly fileArgs: string[],
     configName: string,
@@ -35,7 +35,11 @@ export class WatchRunner extends WatchProgram {
 
   protected override extendedOptions: ts.CompilerOptions = {
     noEmit: true,
-    allowImportingTsExtensions: false,
+    allowImportingTsExtensions: true,
+    declaration: false,
+    sourceMap: false,
+    incremental: false,
+    noEmitOnError: false,
   };
 
   protected override setFirstHook(
@@ -44,15 +48,7 @@ export class WatchRunner extends WatchProgram {
     const origCreateProgram = host.createProgram;
 
     host.createProgram = (...args) => {
-      const [, options, host] = args;
-
       if (this.child !== undefined) this.child.kill();
-
-      if (options) this.changeTsExt.setOptions(options);
-
-      if (host) {
-        host.readFile = morphReadFile(this.morphProject, this.changeTsExt);
-      }
 
       return origCreateProgram(...args);
     };
@@ -65,20 +61,48 @@ export class WatchRunner extends WatchProgram {
   ): void {
     const origAfterProgramCreate = host.afterProgramCreate;
 
-    host.afterProgramCreate = (program) => {
-      const allDiagnostics = ts.getPreEmitDiagnostics(program.getProgram());
+    host.afterProgramCreate = (buildProgram) => {
+      const program = buildProgram.getProgram();
+      const allDiagnostics = ts.getPreEmitDiagnostics(program);
 
       if (!allDiagnostics.length) {
         const tsOptions = program.getCompilerOptions();
 
+        tsOptions.noEmit = false;
+
+        const sourceFiles = program.getSourceFiles();
+
+        const emitedFiles: Record<string, string> = {};
+
+        for (const sourceFile of sourceFiles) {
+          program.emit(sourceFile, (_, text) => {
+            const fileName = sourceFile.fileName;
+            const fileUrl = pathToFileURL(fileName).href;
+            emitedFiles[fileUrl] = text;
+          });
+        }
+
+        tsOptions.noEmit = true;
+
         if (this.child === undefined)
-          this.child = initChild(this.fileToRun, this.fileArgs, tsOptions);
+          this.child = initChild(
+            this.fileToRun,
+            this.fileArgs,
+            tsOptions,
+            emitedFiles,
+          );
         else {
           this.child.kill();
-          this.child = initChild(this.fileToRun, this.fileArgs, tsOptions);
+          this.child = initChild(
+            this.fileToRun,
+            this.fileArgs,
+            tsOptions,
+            emitedFiles,
+          );
         }
       }
-      if (origAfterProgramCreate) return origAfterProgramCreate(program);
+      
+      if (origAfterProgramCreate) return origAfterProgramCreate(buildProgram);
     };
   }
 
@@ -96,8 +120,8 @@ export class WatchRunner extends WatchProgram {
 
 export class Runner extends Program {
   constructor(
-    private readonly changeTsExt: ChangeTsExts,
-    private readonly morphProject: MorphProject,
+    _changeTsExt: ChangeTsExts,
+    _: MorphProject,
     private readonly fileToRun: string,
     private readonly fileArgs: string[],
     tsConfig: ts.CompilerOptions,
@@ -108,24 +132,24 @@ export class Runner extends Program {
 
   protected override extendTsConfig: ts.CompilerOptions = {
     noEmit: true,
-    allowImportingTsExtensions: false,
+    allowImportingTsExtensions: true,
+    declaration: false,
+    sourceMap: false,
     incremental: false,
+    noEmitOnError: false,
   };
 
   protected override createHost(): ts.CompilerHost {
     const tsConfig = this.getTsConfig();
-    this.changeTsExt.setOptions(tsConfig);
 
     const host = ts.createCompilerHost(tsConfig);
-
-    host.readFile = morphReadFile(this.morphProject, this.changeTsExt);
 
     return host;
   }
 
   private program?: ts.Program;
   private child?: ChildProcess;
-  public run() {
+  public async run() {
     this.program = this.createProgram();
 
     const allDiagnostics = this.getDiagnostics(this.program);
@@ -133,11 +157,37 @@ export class Runner extends Program {
     if (allDiagnostics.length) reportDiagnostics(allDiagnostics);
     else {
       const tsOptions = this.program.getCompilerOptions();
-      if (this.child === undefined)
-        this.child = initChild(this.fileToRun, this.fileArgs, tsOptions);
-      else {
+
+      tsOptions.noEmit = false;
+      tsOptions.noEmitOnError = false;
+
+      const sourceFiles = this.program.getSourceFiles();
+
+      const emitedFiles: Record<string, string> = {};
+
+      for (const sourceFile of sourceFiles) {
+        this.program.emit(sourceFile, (_, text) => {
+          const fileName = sourceFile.fileName;
+          const fileUrl = pathToFileURL(fileName).href;
+          emitedFiles[fileUrl] = text;
+        });
+      }
+
+      if (this.child === undefined) {
+        this.child = initChild(
+          this.fileToRun,
+          this.fileArgs,
+          tsOptions,
+          emitedFiles,
+        );
+      } else {
         this.child.kill();
-        this.child = initChild(this.fileToRun, this.fileArgs, tsOptions);
+        this.child = initChild(
+          this.fileToRun,
+          this.fileArgs,
+          tsOptions,
+          emitedFiles,
+        );
       }
     }
   }

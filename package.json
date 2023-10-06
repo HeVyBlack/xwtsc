@@ -1,11 +1,11 @@
 {
   "name": "xwtsc",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "",
   "main": "bin/main.js",
   "bin": "bin/main.js",
   "scripts": {
-    "dev": "tsc --watch",
+    "dev": "pnpm run clear && tsc --watch",
     "build": "tsc",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint \"src/**/*.ts\" --fix",
@@ -26,8 +26,8 @@
   "license": "MIT",
   "devDependencies": {
     "@types/module-alias": "2.0.2",
-    "@types/node": "20.8.0",
-    "@typescript-eslint/eslint-plugin": "6.7.3",
+    "@types/node": "20.8.2",
+    "@typescript-eslint/eslint-plugin": "6.7.4",
     "eslint": "8.50.0",
     "eslint-config-prettier": "9.0.0",
     "eslint-config-standard-with-typescript": "39.1.0",
