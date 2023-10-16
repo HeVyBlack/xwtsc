@@ -1,19 +1,21 @@
 import { fork } from 'child_process';
 import ts from 'typescript';
-import { runnerHooksPath } from '../runner/runner.js';
+import { getHooksPath } from '../runner/runner.option.js';
 
+let hooksPath: string;
 export function initChild(
   file: string,
   args: string[],
   options: ts.CompilerOptions,
-  emetidFiles: Record<string, string> = {},
+  emitedFiles: Record<string, string> = {},
 ) {
+  if (!hooksPath) hooksPath = getHooksPath();
   const child = fork(file, args, {
-    execArgv: ['--no-warnings', `--loader=${runnerHooksPath}`],
+    execArgv: ['--no-warnings', `--loader=${hooksPath}`],
     env: {
       ...process.env,
       XWTSC_OPTIONS: JSON.stringify(options),
-      XWTSC_EMITED_FILES: JSON.stringify(emetidFiles),
+      XWTSC_EMITED_FILES: JSON.stringify(emitedFiles),
     },
   });
 

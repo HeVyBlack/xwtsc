@@ -8,7 +8,7 @@
 
 - To Use: `xwtsc [option] [verb] [flags]` or `npx xwtsc [option] [verb] [flags]`
 
-- Options: `build` & `check` & `run`
+- Options: `build` & `check` & `run` & `init`
 
 - Verbs: `watch`
 

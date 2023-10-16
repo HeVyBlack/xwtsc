@@ -38,6 +38,7 @@
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
-    "noEmitOnError": false
+    "noEmitOnError": false,
+    "lib": ["ES2022"]
   }
 }

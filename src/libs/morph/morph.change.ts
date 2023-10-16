@@ -1,18 +1,12 @@
-import {
-  SourceFile,
-  TransformTraversalControl,
-  ts as morph,
-  Project as MorphProject,
-} from 'ts-morph';
-import { SingleFileReplacer } from 'tsc-alias';
+import { SourceFile, TransformTraversalControl, ts as morph } from 'ts-morph';
 import ts from 'typescript';
 
 export class ChangeTsExts {
-  private readonly endsTsExt = /\.(m|c)?ts$/; // Ends with a ts extension
-  private readonly relativePath = /^(\/|\.{1,2}\/)/; // Is relative or absulute;
+  private readonly isTsExt = /\.(m|c)?ts$/; // Ends with a ts extension
+  private readonly isPath = /^(\/|\.{1,2}\/)/; // Is relative or absulute;
 
   readonly inText = (text: string) => {
-    if (this.relativePath.test(text) && this.endsTsExt.test(text)) {
+    if (this.isPath.test(text) && this.isTsExt.test(text)) {
       const newText = text.replace(/ts$/, 'js');
 
       return newText;
@@ -26,7 +20,7 @@ export class ChangeTsExts {
 
         if (!pRegex.test(text)) {
           const pRegex = new RegExp(`^${p}`); // Only starts
-          if (pRegex.test(text) && this.endsTsExt.test(text)) {
+          if (pRegex.test(text) && this.isTsExt.test(text)) {
             const newText = text.replace(/ts$/, 'js');
             return newText;
           }
@@ -168,37 +162,3 @@ export class ChangeTsExts {
     return transformed;
   };
 }
-
-export const morphReadFile = (
-  morphProject: MorphProject,
-  changeTsExt: ChangeTsExts,
-) => {
-  return function (path: string, encoding: string = 'utf-8') {
-    const file = ts.sys.readFile(path, encoding);
-
-    if (file !== undefined) {
-      const sourceFile = morphProject.createSourceFile(path, file, {
-        overwrite: true,
-      });
-
-      const transformed = changeTsExt.inSourceFile(sourceFile);
-      return transformed.getFullText();
-    } else return file;
-  };
-};
-
-export const morphWriteFile = (
-  origWriteFile: ts.WriteFileCallback,
-  fileReplacer: SingleFileReplacer,
-): ts.WriteFileCallback => {
-  return function (...args) {
-    const [fileName, text, ...rest] = args;
-
-    const newText = fileReplacer({
-      fileContents: text,
-      filePath: fileName,
-    });
-
-    return origWriteFile(fileName, newText, ...rest);
-  };
-};
