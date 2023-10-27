@@ -1,13 +1,12 @@
 import ts from 'typescript';
-import { initChild } from '../utils/child.js';
+import { ChildInitialzer } from '../utils/child.js';
 import { pathToFileURL } from 'url';
 import { Program } from '../libs/typescript/ts.program.js';
 import { reportDiagnostics } from '../libs/typescript/ts.utils.js';
 
 export class Runner extends Program {
   constructor(
-    private readonly fileToRun: string,
-    private readonly fileArgs: string[],
+    private readonly childInitialzer: ChildInitialzer,
     tsConfig: ts.CompilerOptions,
     fileNames: string[],
   ) {
@@ -55,7 +54,7 @@ export class Runner extends Program {
         });
       }
 
-      initChild(this.fileToRun, this.fileArgs, tsOptions, emitedFiles);
+      this.childInitialzer.init(tsOptions, emitedFiles);
     }
   }
 }

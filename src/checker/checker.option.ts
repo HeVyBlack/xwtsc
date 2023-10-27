@@ -1,6 +1,7 @@
 import { parseTsConfigPath } from '../utils/args.js';
 import { WatchChecker } from './checker.watcher.js';
 import { Checker } from './checker.program.js';
+import { readTsConfig } from '../libs/typescript/ts.functions.js';
 
 export function handleCheckOption(args: string[]) {
   const [verb] = args;
@@ -12,7 +13,7 @@ export function handleCheckOption(args: string[]) {
     return watchBuilder.initWatcher();
   }
 
-  const { fileNames, options } = Checker.readTsConfig(tsConfigPath);
+  const { fileNames, options } = readTsConfig(tsConfigPath);
   const checker = new Checker(options, fileNames);
 
   return checker.check();

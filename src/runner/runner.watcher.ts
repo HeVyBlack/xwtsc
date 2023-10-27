@@ -1,21 +1,20 @@
 import ts from 'typescript';
-import { initChild } from '../utils/child.js';
+import { ChildInitialzer } from '../utils/child.js';
 import { pathToFileURL } from 'url';
 import { ChildProcess } from 'child_process';
 import { WatchProgram } from '../libs/typescript/ts.watcher.js';
 
 export class WatchRunner extends WatchProgram {
   constructor(
-    private readonly fileToRun: string,
-    private readonly fileArgs: string[],
+    private readonly childInitialzer: ChildInitialzer,
     configName: string,
   ) {
     super(configName);
 
     const signals = ['SIGTERM', 'SIGINT'];
 
-    for (const s of signals) {
-      process.on(s, () => {
+    for (const signal of signals) {
+      process.on(signal, () => {
         if (this.child) this.child.kill();
         if (this.program) this.program.close();
         process.exit(0);
@@ -46,6 +45,31 @@ export class WatchRunner extends WatchProgram {
 
   private child?: ChildProcess;
 
+  private initChild(
+    tsOptions: ts.CompilerOptions,
+    emitedFiles: Record<string, string>,
+  ) {
+    if (this.child) this.child.kill();
+
+    const child = this.childInitialzer.init(tsOptions, emitedFiles);
+
+    this.child = child;
+  }
+
+  private getEmitedFiles(program: ts.Program): Record<string, string> {
+    const sourceFiles = program.getSourceFiles();
+    const emitedFiles: Record<string, string> = {};
+    for (const sourceFile of sourceFiles) {
+      program.emit(sourceFile, function (_, text) {
+        const fileName = sourceFile.fileName;
+        const fileUrl = pathToFileURL(fileName).href;
+        emitedFiles[fileUrl] = text;
+      });
+    }
+
+    return emitedFiles;
+  }
+
   protected override setSecondHook(
     host: ts.WatchCompilerHostOfConfigFile<ts.EmitAndSemanticDiagnosticsBuilderProgram>,
   ): void {
@@ -60,36 +84,11 @@ export class WatchRunner extends WatchProgram {
 
         tsOptions.noEmit = false;
 
-        const sourceFiles = program.getSourceFiles();
-
-        const emitedFiles: Record<string, string> = {};
-
-        for (const sourceFile of sourceFiles) {
-          program.emit(sourceFile, (_, text) => {
-            const fileName = sourceFile.fileName;
-            const fileUrl = pathToFileURL(fileName).href;
-            emitedFiles[fileUrl] = text;
-          });
-        }
+        const emitedFiles = this.getEmitedFiles(program);
 
         tsOptions.noEmit = true;
 
-        if (this.child === undefined)
-          this.child = initChild(
-            this.fileToRun,
-            this.fileArgs,
-            tsOptions,
-            emitedFiles,
-          );
-        else {
-          this.child.kill();
-          this.child = initChild(
-            this.fileToRun,
-            this.fileArgs,
-            tsOptions,
-            emitedFiles,
-          );
-        }
+        this.initChild(tsOptions, emitedFiles);
       }
 
       if (origAfterProgramCreate) return origAfterProgramCreate(buildProgram);

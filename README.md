@@ -15,3 +15,13 @@
 - Flags: `--tsconfig [path/to/tsconfig.json] (default: ./tsconfig.json)`
 
 - Notes: For `run`, you must pass a file to run. To pass arguments, use --args=  `[...args]` (Must be the last flag)
+
+In the tsconfig.json file you can put some extra options like this:
+{
+    "compilerOptions": {...},
+    "xwtsc": {
+        "fileToRun": `string`,
+        "fileArgs": `string[]`,
+        "nodeArgs": `string[]`
+    }
+}

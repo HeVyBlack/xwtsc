@@ -1,4 +1,5 @@
 import { exitError } from './log.js';
+import { XwtscOptions } from './xwtsc.js';
 
 export function parseTsConfigPath(args: string[]): string {
   const tsConfigPath = './tsconfig.json';
@@ -11,8 +12,13 @@ export function parseTsConfigPath(args: string[]): string {
   return tsConfigPath;
 }
 
-export function parseFileArgs(args: string[]): string[] {
-  const fileArgs: string[] = [];
+export function parseFileArgs(
+  args: string[],
+  xwtscOptions?: XwtscOptions,
+): string[] {
+  let fileArgs: string[] = [];
+
+  if (xwtscOptions) fileArgs = [...xwtscOptions.fileArgs];
 
   if (args.includes('--args=')) {
     const index = args.indexOf('--args=') + 1;

@@ -22,8 +22,6 @@ async function main(args: string[]): Promise<void> {
 
   if (option === 'init') return handleInitOption();
 
-  const tsConfigPath = parseTsConfigPath(args);
-
   if (option === 'run') return handleRunOption(args.slice(1));
 
   const morphProject = new MorphProject({
@@ -42,6 +40,8 @@ async function main(args: string[]): Promise<void> {
   if (option === 'check') return handleCheckOption(args.slice(1));
 
   const changeTsExt = new ChangeTsExts();
+
+  const tsConfigPath = parseTsConfigPath(args);
 
   const fileReplacer = await prepareSingleFileReplaceTscAliasPaths({
     configFile: tsConfigPath,

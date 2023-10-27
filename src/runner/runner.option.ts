@@ -6,25 +6,43 @@ import { exitError } from '../utils/log.js';
 import { parseFileArgs, parseTsConfigPath } from '../utils/args.js';
 import { WatchRunner } from './runner.watcher.js';
 import { Runner } from './runner.program.js';
+import { ChildInitialzer } from '../utils/child.js';
+import { readTsConfig } from '../libs/typescript/ts.functions.js';
+import { XwtscOptions } from '../utils/xwtsc.js';
 
 export function handleRunOption(args: string[]): void {
-  const [verb] = args;
+  let [verb] = args;
   const tsConfigPath = parseTsConfigPath(args);
+
+  const { fileNames, options, raw } = readTsConfig(tsConfigPath);
+
+  const xwtscOptions = new XwtscOptions(raw);
+
+  if (!verb) verb = xwtscOptions.fileToRun;
   if (!verb) return exitError('Provied a verb or file to run!');
 
-  const fileArgs = parseFileArgs(args);
+  const fileArgs = parseFileArgs(args, xwtscOptions);
+
+  const nodeArgs = xwtscOptions.nodeArgs;
 
   if (verb === 'watch') {
-    const fileToRun = args[1];
+    let fileToRun = args[1];
+
+    if (!fileToRun) fileToRun = xwtscOptions.fileToRun;
+
     if (!fileToRun) return exitError('Provied a file to run!');
 
-    const watchBuilder = new WatchRunner(fileToRun, fileArgs, tsConfigPath);
+    const childInitialzer = new ChildInitialzer(fileToRun, fileArgs, nodeArgs);
+
+    const watchBuilder = new WatchRunner(childInitialzer, tsConfigPath);
+
     return watchBuilder.initWatcher();
   } else {
     const fileToRun = verb;
 
-    const { fileNames, options } = Runner.readTsConfig(tsConfigPath);
-    const runner = new Runner(fileToRun, fileArgs, options, fileNames);
+    const childInitialzer = new ChildInitialzer(fileToRun, fileArgs, nodeArgs);
+
+    const runner = new Runner(childInitialzer, options, fileNames);
     return runner.run();
   }
 }

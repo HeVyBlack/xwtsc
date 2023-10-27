@@ -2,6 +2,7 @@ import { AliasExtReplacer } from '../ext.replacer.js';
 import { parseTsConfigPath } from '../utils/args.js';
 import { WatchBuilder } from './builder.watcher.js';
 import { Builder } from './builder.program.js';
+import { readTsConfig } from '../libs/typescript/ts.functions.js';
 
 export function handleBuildOption(
   args: string[],
@@ -15,7 +16,7 @@ export function handleBuildOption(
     return watchBuilder.initWatcher();
   }
 
-  const { fileNames, options } = Builder.readTsConfig(tsConfigPath);
+  const { fileNames, options } = readTsConfig(tsConfigPath);
 
   const builder = new Builder(aliasExtReplacer, options, fileNames);
   return builder.build();
