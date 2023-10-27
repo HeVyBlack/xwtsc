@@ -13,7 +13,7 @@
     "check": "tsc --noEmit",
     "clear": "rimraf bin tsconfig.tsbuildinfo",
     "prepublish": "pnpm run pretty && pnpm run clear && pnpm run build",
-    "publish": "pnpm run prepublish && npm publish"
+    "pub": "pnpm run prepublish && npm publish"
   },
   "keywords": [
     "typescript",
